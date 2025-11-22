@@ -1,16 +1,8 @@
 {
   "name": "voxdrop",
-  "version": "1.0.0",
-  "description": "Record your voice, let AI enhance it, get an animated talking video",
-  "private": true,
+  "homepage": "https://YOUR_USERNAME.github.io/voxdrop",
   "scripts": {
-    "dev": "vercel dev",
-    "build": "echo 'Static site'",
-    "start": "vercel dev"
-  },
-  "dependencies": {},
-  "devDependencies": {},
-  "engines": {
-    "node": "18.x"
+    "build": "echo 'Static site ready'",
+    "deploy": "git push origin gh-pages"
   }
 }
