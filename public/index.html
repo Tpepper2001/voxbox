@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VoxDrop – Drop a voice, get a talking video</title>
+  <meta name="description" content="Record your voice → AI enhances it → get an animated talking avatar video with AI voice synthesis." />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; }
+    .mic-btn-active { animation: pulse-red 1.5s infinite; }
+    @keyframes pulse-red {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<div id="app" class="max-w-lg mx-auto p-6 text-center">
+
+  <!-- Recording Page -->
+  <div id="recorder" class="space-y-8">
+    <h1 class="text-5xl font-black bg-gradient-to-r from-pink-400 to-blue-400 bg-clip-text text-transparent">
+      VoxDrop
+    </h1>
+    <p class="text-xl text-gray-300">Press the mic, speak, and let AI enhance your message.</p>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Character</label>
+        <select id="character" class="p-3 rounded-xl bg-gray-800 text-white w-full shadow-inner">
+          <option value="0">Blue Robot</option>
+          <option value="1">Pink Alien</option>
+          <option value="2">Green Monster</option>
+          <option value="3">Yellow Blob</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-sm text-gray-400 mb-2">Voice</label>
+        <select id="voice" class="p-3 rounded-xl bg-gray-800 text-white w-full shadow-inner">
+          <option value="Kore">Kore (Firm)</option>
+          <option value="Puck">Puck (Upbeat)</option>
+          <option value="Charon">Charon (Informative)</option>
+          <option value="Fenrir">Fenrir (Excitable)</option>
+          <option value="Aoede">Aoede (Breezy)</option>
+        </select>
+      </div>
+
+
+    </div>
+
+    <canvas id="characterCanvas" width="300" height="400" class="mx-auto bg-gray-900 rounded-2xl shadow-2xl border-4 border-gray-700"></canvas>
+
+    <div class="flex flex-col items-center gap-4">
+      <button id="micBtn" class="w-24 h-24 bg-pink-600 rounded-full flex items-center justify-center shadow-2xl hover:scale-110 transition duration-300">
+        <svg class="w-12 h-12" fill="white" viewBox="0 0 24 24">
+          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3s-3 1.34-3 3v6c0 1.66 1.34 3 3 3zM17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+        </svg>
+      </button>
+      <p id="status" class="text-lg font-medium text-gray-300">Press the mic and speak!</p>
+    </div>
+  </div>
+
+  <!-- Transcription Review Page -->
+  <div id="review" class="hidden space-y-6">
+    <h2 class="text-3xl font-bold text-blue-400">Review & Edit</h2>
+    
+    <div class="bg-gray-800 p-4 rounded-xl space-y-3">
+      <p class="text-sm text-gray-400">Your Recording:</p>
+      <p id="originalText" class="text-white text-lg leading-relaxed"></p>
+    </div>
+
+    <div id="enhancedSection" class="hidden bg-gray-800 p-4 rounded-xl space-y-3">
+      <p class="text-sm text-gray-400">AI Enhanced Version:</p>
+      <textarea id="enhancedText" class="w-full p-3 bg-gray-700 text-white rounded-lg h-24 resize-none"></textarea>
+    </div>
+
+    <div class="flex gap-3">
+      <button onclick="goBack()" class="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold transition">Back</button>
+      <button onclick="confirmText()" class="flex-1 py-3 bg-green-600 hover:bg-green-700 rounded-xl font-bold transition">Continue</button>
+    </div>
+  </div>
+
+  <!-- Result Page -->
+  <div id="result" class="hidden space-y-8">
+    <h2 class="text-4xl font-bold bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
+      Video Ready!
+    </h2>
+    <video id="finalVideo" controls autoplay loop class="w-full rounded-2xl shadow-2xl border-4 border-green-500"></video>
+    
+    <div class="bg-gray-800 p-4 rounded-xl">
+      <p class="text-sm text-gray-400 mb-2">Final Script:</p>
+      <p id="finalScript" class="text-white text-sm leading-relaxed"></p>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <button onclick="copyLink()" class="py-3 bg-green-600 hover:bg-green-700 rounded-xl font-bold shadow-lg transition">Copy Link</button>
+      <a id="downloadBtn" download="voxdrop_video.webm" class="py-3 bg-purple-600 hover:bg-purple-700 rounded-xl font-bold flex items-center justify-center shadow-lg transition">Download</a>
+    </div>
+
+    <button onclick="resetApp()" class="w-full py-3 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold transition">Create Another</button>
+  </div>
+</div>
+
+<!-- Message Box -->
+<div id="messageBox" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center p-4 z-50">
+  <div class="bg-gray-800 p-6 rounded-xl shadow-2xl max-w-sm w-full space-y-4 border border-blue-500">
+    <h3 id="messageTitle" class="text-xl font-bold text-white">Message</h3>
+    <p id="messageContent" class="text-gray-300"></p>
+    <button onclick="hideMessage()" class="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition">Close</button>
+  </div>
+</div>
+
+<script>
+  const API_BASE = '/api/';
+
+  let micAudioContext = null;
+  let recorder, audioBlob, stream;
+  let analyser, dataArray, isRecording = false;
+  let currentText = "";
+  let finalText = "";
+
+  const canvas = document.getElementById('characterCanvas');
+  const ctx = canvas.getContext('2d');
+  const micBtn = document.getElementById('micBtn');
+  const statusEl = document.getElementById('status');
+
+  const characters = [
+    { color: "#60a5fa", eyeY: -30 },
+    { color: "#f472b6", eyeY: -25 },
+    { color: "#34d399", eyeY: -35 },
+    { color: "#fbbf24", eyeY: -20 }
+  ];
+
+  function drawCharacter(volume = 0) {
+    const char = characters[document.getElementById('character').value] || characters[0];
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0,0,300,400);
+    const scale = 1 + volume * 0.2;
+
+    ctx.save();
+    ctx.translate(150, 200);
+    ctx.scale(scale, scale);
+
+    ctx.beginPath();
+    ctx.arc(0, 0, 90, 0, Math.PI*2);
+    ctx.fillStyle = char.color;
+    ctx.fill();
+
+    ctx.fillStyle = 'white';
+    ctx.beginPath(); ctx.arc(-35, char.eyeY, 20, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(35, char.eyeY, 20, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'black';
+    ctx.beginPath(); ctx.arc(-35, char.eyeY, 10, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(35, char.eyeY, 10, 0, Math.PI*2); ctx.fill();
+
+    const mouthHeight = 2 + volume * 50;
+    ctx.beginPath();
+    ctx.ellipse(0, 40, 50, mouthHeight, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'black';
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function animate() {
+    if (analyser && dataArray) {
+      analyser.getByteFrequencyData(dataArray);
+      const avg = dataArray.slice(0, 10).reduce((a,b)=>a+b)/10 / 255;
+      drawCharacter(avg);
+    } else {
+      drawCharacter(0);
+    }
+    requestAnimationFrame(animate);
+  }
+  animate();
+
+  micBtn.onclick = async () => {
+    if (isRecording) {
+      isRecording = false;
+      recorder.stop();
+      stream.getTracks().forEach(t => t.stop());
+      micBtn.classList.remove('mic-btn-active');
+      micBtn.innerHTML = `<svg class="w-12 h-12" fill="white" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3s-3 1.34-3 3v6c0 1.66 1.34 3 3 3zM17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>`;
+      statusEl.textContent = "Processing...";
+      analyser = null; dataArray = null;
+      if (micAudioContext) { micAudioContext.close(); micAudioContext = null; }
+      return;
+    }
+
+    try {
+      isRecording = true;
+      stream = await navigator.mediaDevices.getUserMedia({audio: true});
+      micAudioContext = new AudioContext();
+      analyser = micAudioContext.createAnalyser();
+      analyser.fftSize = 256;
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const source = micAudioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      recorder = new MediaRecorder(stream, {mimeType: 'audio/webm;codecs=opus'});
+      const chunks = [];
+      recorder.ondataavailable = e => chunks.push(e.data);
+      recorder.onstop = async () => {
+        audioBlob = new Blob(chunks, {type: 'audio/webm'});
+        await processAudio();
+      };
+      recorder.start();
+      micBtn.classList.add('mic-btn-active');
+      micBtn.innerHTML = `<svg class="w-12 h-12" fill="white" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="red"/></svg>`;
+      statusEl.textContent = "Recording... Tap to stop.";
+    } catch (err) {
+      isRecording = false;
+      showMessage("Microphone Error", "Please allow microphone access.");
+    }
+  };
+
+  async function processAudio() {
+    try {
+      statusEl.textContent = "1/4: Transcribing...";
+      const b64 = await blobToBase64(audioBlob);
+      currentText = await transcribe(b64);
+      
+      const mode = document.getElementById('mode').value;
+      
+      if (mode === "standard") {
+        finalText = currentText;
+        showReview(false);
+      } else {
+        statusEl.textContent = "2/4: Enhancing with AI...";
+        finalText = await enhanceText(currentText, mode);
+        showReview(true);
+      }
+    } catch (err) {
+      console.error(err);
+      showMessage("Error", err.message || "Processing failed.");
+      resetMic();
+    }
+  }
+
+  async function transcribe(b64) {
+    const res = await fetch(`${API_BASE}synthesize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "transcribe",
+        payload: {
+          contents: [{ parts: [
+            { text: "Transcribe exactly. No extra text." },
+            { inlineData: { mimeType: "audio/webm", data: b64 } }
+          ]}]
+        }
+      })
+    });
+    const json = await res.json();
+    if (json.error) throw new Error(json.error.message);
+    return json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+  }
+
+  async function enhanceText(text, mode) {
+    const prompts = {
+      enhance: `Improve this speech while keeping the original meaning. Fix grammar, add punctuation, and make it clearer. Keep it natural and spoken:\n\n"${text}"`,
+      professional: `Rewrite this as a professional, polished version suitable for business. Keep it concise and impactful:\n\n"${text}"`,
+      creative: `Rewrite this in a creative, engaging way with more personality and flair:\n\n"${text}"`
+    };
+
+    const res = await fetch(`${API_BASE}synthesize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "enhance",
+        payload: {
+          contents: [{ parts: [{ text: prompts[mode] }] }]
+        }
+      })
+    });
+    const json = await res.json();
+    if (json.error) throw new Error(json.error.message);
+    return json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || text;
+  }
+
+  function showReview(hasEnhanced) {
+    document.getElementById('recorder').classList.add('hidden');
+    document.getElementById('review').classList.remove('hidden');
+    document.getElementById('originalText').textContent = currentText;
+    
+    if (hasEnhanced) {
+      document.getElementById('enhancedSection').classList.remove('hidden');
+      document.getElementById('enhancedText').value = finalText;
+    }
+  }
+
+  function goBack() {
+    document.getElementById('review').classList.add('hidden');
+    document.getElementById('recorder').classList.remove('hidden');
+    resetMic();
+  }
+
+  async function confirmText() {
+    try {
+      if (document.getElementById('enhancedSection').classList.contains('hidden') === false) {
+        finalText = document.getElementById('enhancedText').value;
+      }
+
+      document.getElementById('review').classList.add('hidden');
+      statusEl.textContent = "3/4: Synthesizing voice...";
+      const synthUrl = await synthesize(finalText, document.getElementById('voice').value);
+      
+      statusEl.textContent = "4/4: Rendering video...";
+      await createFinalVideo(synthUrl);
+    } catch (err) {
+      console.error(err);
+      showMessage("Error", err.message || "Video creation failed.");
+      resetMic();
+    }
+  }
+
+  async function synthesize(text, voice) {
+    const res = await fetch(`${API_BASE}synthesize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "synthesize",
+        payload: {
+          contents: [{ parts: [{ text }] }],
+          generationConfig: { responseModalities: ["AUDIO"] },
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
+        }
+      })
+    });
+    const json = await res.json();
+    if (json.error) throw new Error(json.error.message);
+    const data = json.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    const mime = json.candidates?.[0]?.content?.parts?.[0]?.inlineData?.mimeType;
+    if (!data) throw new Error("TTS failed");
+    const rate = mime.match(/rate=(\d+)/)?.[1] || 24000;
+    const wav = pcmToWav(base64ToArrayBuffer(data), +rate);
+    return URL.createObjectURL(wav);
+  }
+
+  async function createFinalVideo(audioUrl) {
+    const audio = new Audio(audioUrl);
+    const ctx = new AudioContext();
+    const dest = ctx.createMediaStreamDestination();
+    const source = ctx.createMediaElementSource(audio);
+    const playbackAnalyser = ctx.createAnalyser();
+    playbackAnalyser.fftSize = 256;
+    dataArray = new Uint8Array(playbackAnalyser.frequencyBinCount);
+    analyser = playbackAnalyser;
+
+    source.connect(playbackAnalyser);
+    playbackAnalyser.connect(dest);
+    playbackAnalyser.connect(ctx.destination);
+
+    const canvasStream = canvas.captureStream(30);
+    const combined = new MediaStream([...canvasStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+    const rec = new MediaRecorder(combined, {mimeType: 'video/webm;codecs=vp8,opus'});
+    const chunks = [];
+
+    rec.ondataavailable = e => chunks.push(e.data);
+    rec.onstop = () => {
+      analyser = null; dataArray = null;
+      const blob = new Blob(chunks, {type: 'video/webm'});
+      const url = URL.createObjectURL(blob);
+      showResult(url);
+      ctx.close();
+    };
+
+    audio.play();
+    rec.start();
+    audio.onended = () => setTimeout(() => rec.stop(), 500);
+  }
+
+  function showResult(videoUrl) {
+    document.getElementById('review').classList.add('hidden');
+    document.getElementById('result').classList.remove('hidden');
+    document.getElementById('finalVideo').src = videoUrl;
+    document.getElementById('downloadBtn').href = videoUrl;
+    document.getElementById('finalScript').textContent = finalText;
+    confetti({particleCount: 200, spread: 70, origin: { y: 0.6 }});
+  }
+
+  function copyLink() {
+    const url = document.getElementById('finalVideo').src;
+    navigator.clipboard.writeText(url).then(() => {
+      showMessage("Copied!", "Video link copied to clipboard!");
+    });
+  }
+
+  function resetApp() {
+    document.getElementById('result').classList.add('hidden');
+    document.getElementById('recorder').classList.remove('hidden');
+    resetMic();
+  }
+
+  function showMessage(title, content) {
+    document.getElementById('messageTitle').textContent = title;
+    document.getElementById('messageContent').innerHTML = content;
+    document.getElementById('messageBox').classList.remove('hidden');
+  }
+
+  function hideMessage() { document.getElementById('messageBox').classList.add('hidden'); }
+
+  function resetMic() {
+    micBtn.classList.remove('mic-btn-active');
+    micBtn.innerHTML = `<svg class="w-12 h-12" fill="white" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3s-3 1.34-3 3v6c0 1.66 1.34 3 3 3zM17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>`;
+    statusEl.textContent = "Press the mic and speak!";
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = () => res(reader.result.split(',')[1]);
+      reader.onerror = rej;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function base64ToArrayBuffer(b64) {
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return arr.buffer;
+  }
+
+  function pcmToWav(pcmBuffer, sampleRate) {
+    const buffer = new ArrayBuffer(44 + pcmBuffer.byteLength);
+    const view = new DataView(buffer);
+    const writeString = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+
+    const pcm16 = new Int16Array(pcmBuffer);
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + pcm16.length * 2, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, 'data');
+    view.setUint32(40, pcm16.length * 2, true);
+
+    let offset = 44;
+    for (let i = 0; i < pcm16.length; i++, offset += 2)
+      view.setInt16(offset, pcm16[i], true);
+
+    return new Blob([buffer], {type: 'audio/wav'});
+  }
+</script>
+</body>
+</html>
